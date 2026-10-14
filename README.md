@@ -19,6 +19,6 @@ Everything runs in the browser. There is no build step and no server-side code: 
 
 ## Notes
 
-With three indicators and two factors the model has −2 degrees of freedom, so the factor solution is not unique; principal axis factoring often produces Heywood cases. Factor analysis uses only the correlation matrix, so it cannot see the horn shape that is obvious in the 3D view.
+With three indicators and two factors the model has −2 degrees of freedom, so the factor solution is not unique; principal axis factoring often produces Heywood cases.
 
 The only external resource is the IBM Plex font family from Google Fonts; the page falls back to system fonts without it.
