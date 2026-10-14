@@ -264,8 +264,9 @@ td .vname { font-size: 12.5px; }
           <span>Rotation</span>
           <div class="seg" role="radiogroup" aria-label="Rotation">
             <input type="radio" name="rot" id="rot-none" value="none"><label for="rot-none">None</label>
-            <input type="radio" name="rot" id="rot-varimax" value="varimax" checked><label for="rot-varimax">Varimax</label>
+            <input type="radio" name="rot" id="rot-varimax" value="varimax"><label for="rot-varimax">Varimax</label>
             <input type="radio" name="rot" id="rot-promax" value="promax"><label for="rot-promax">Promax</label>
+            <input type="radio" name="rot" id="rot-oblimin" value="oblimin" checked><label for="rot-oblimin">Oblimin</label>
           </div>
         </div>
         <label class="check"><input type="checkbox" id="align" checked> Match factor order and sign to the true factors</label>
@@ -283,6 +284,8 @@ td .vname { font-size: 12.5px; }
         <label class="check"><input type="checkbox" id="spin" checked> Rotate the 3D view</label>
         <label class="check"><input type="checkbox" id="plane" checked> Show the common-factor plane</label>
         <label class="check"><input type="checkbox" id="resid"> Show distance to the plane</label>
+        <label class="check"><input type="checkbox" id="factors3"> Show factor directions in 3D</label>
+        <label class="check"><input type="checkbox" id="loadings2"> Show variable loadings in 2D</label>
       </section>
     </aside>
 
@@ -291,18 +294,18 @@ td .vname { font-size: 12.5px; }
         <figure class="panel">
           <header>
             <h2>Observed variables</h2>
-            <span class="legend" id="legend3">true F₁ −2 <i></i> +2</span>
+            <span class="legend"><span class="lg-lo"></span><i></i><span class="lg-hi"></span></span>
           </header>
           <div class="canvas-box"><canvas id="c3" tabindex="0" aria-label="Rotating 3D scatter plot of x1, x2 and x3. Drag or use arrow keys to rotate."></canvas></div>
-          <figcaption>Standardised x₁, x₂, x₃. Drag or use arrow keys to turn. Arrows show the direction each factor pushes the data; the shaded square is the plane they span.</figcaption>
+          <figcaption>Standardised x₁, x₂, x₃. Drag or use arrow keys to turn. The shaded rectangle is the plane the two factors span. Under View you can also show the direction each factor pushes the data.</figcaption>
         </figure>
         <figure class="panel">
           <header>
             <h2>Factor solution</h2>
-            <span class="legend" id="legend2">true F₁ −2 <i></i> +2</span>
+            <span class="legend"><span class="lg-lo"></span><i></i><span class="lg-hi"></span></span>
           </header>
           <div class="canvas-box"><canvas id="c2" aria-label="2D plot of estimated factor scores with loading vectors"></canvas></div>
-          <figcaption>Points are estimated factor scores (regression method). Arrows are each variable’s loadings; the dashed circle marks a loading of 1.</figcaption>
+          <figcaption>Points are estimated factor scores (regression method). Under View you can also show each variable’s loadings as arrows, with a dashed circle marking a loading of 1.</figcaption>
         </figure>
       </div>
 
@@ -415,6 +418,51 @@ function varimax(L) {
   return X.map((r, i) => [r[0] * h[i], r[1] * h[i]]);
 }
 // Promax (power 4) applied to varimax loadings, following R's stats::promax
+// Direct oblimin with gamma = 0 (quartimin), unnormalised, by the gradient projection
+// algorithm of Bernaards & Jennrich (2005), following GPArotation::GPFoblq.
+// Symmetric loadings can sit on a stationary point of the criterion, so it is run from
+// several starting rotations and the lowest criterion value wins.
+function oblimin(A) {
+  let best = null;
+  for (let s = 0; s < 6; s++) {
+    const a = (s * Math.PI) / 12, c = Math.cos(a), sn = Math.sin(a);
+    const r = gpfOblimin(A, [[c, -sn], [sn, c]]);
+    if (!best || r.f < best.f - 1e-10) best = r;
+  }
+  return best;
+}
+function gpfOblimin(A, T0) {
+  const k = A[0].length;
+  const crit = L => {
+    const L2 = L.map(r => r.map(v => v * v));
+    const M = L2.map(r => r.map((_, j) => r.reduce((s, v, c) => s + (c === j ? 0 : v), 0))); // L2 (11' - I)
+    let f = 0;
+    const Gq = L.map((r, i) => r.map((v, j) => { f += L2[i][j] * M[i][j]; return v * M[i][j]; }));
+    return { f: f / 4, Gq };
+  };
+  const loadings = T => mul(A, tr(inv(T)));
+  const grad = (L, Gq, T) => tr(mul(mul(tr(L), Gq), inv(T))).map(r => r.map(v => -v));
+  let T = T0;
+  let L = loadings(T), { f, Gq } = crit(L), G = grad(L, Gq, T), al = 1;
+  for (let it = 0; it < 500; it++) {
+    const cs = Array.from({ length: k }, (_, j) => T.reduce((s, r, i) => s + r[j] * G[i][j], 0));
+    const X = G.map((r, i) => r.map((v, j) => v - T[i][j] * cs[j]));
+    const s = Math.sqrt(X.flat().reduce((a, v) => a + v * v, 0));
+    if (s < 1e-6) break;
+    al *= 2;
+    let Tt, Lt, ct;
+    for (let i = 0; i <= 10; i++) {
+      const Y = T.map((r, a) => r.map((v, b) => v - al * G[a][b]));
+      const nrm = Array.from({ length: k }, (_, j) => Math.sqrt(Y.reduce((acc, r) => acc + r[j] * r[j], 0)));
+      Tt = Y.map(r => r.map((v, j) => v / nrm[j]));
+      Lt = loadings(Tt); ct = crit(Lt);
+      if (f - ct.f > 0.5 * s * s * al) break;
+      al /= 2;
+    }
+    T = Tt; L = Lt; f = ct.f; Gq = ct.Gq; G = grad(L, Gq, T);
+  }
+  return { P: L, Phi: mul(tr(T), T), f };
+}
 function promax(V, power = 4) {
   const Q = V.map(r => r.map(v => v * Math.pow(Math.abs(v), power - 1)));
   const Vt = tr(V);
@@ -499,6 +547,7 @@ function analyse(Z, F, opts) {
   let P = L, Phi = [[1, 0], [0, 1]];
   if (opts.rotation === 'varimax') P = varimax(L);
   if (opts.rotation === 'promax') ({ P, Phi } = promax(varimax(L)));
+  if (opts.rotation === 'oblimin') ({ P, Phi } = oblimin(L));
   const W = mul(inv(R), mul(P, Phi));
   let S = Z.map(z => [0, 1].map(j => z[0] * W[0][j] + z[1] * W[1][j] + z[2] * W[2][j]));
   const col = (M, j) => M.map(r => r[j]);
@@ -555,7 +604,8 @@ const PRESETS = {
 };
 const state = {
   lam: [], phi: 0, n: 300, dist: 'normal', active: 0.25, severity: 1, names: null, seed: 20261014,
-  extraction: 'paf', rotation: 'varimax', align: true, colorBy: 0,
+  extraction: 'paf', rotation: 'oblimin', align: true, colorBy: 0, colorDom: [[-2, 2], [-2, 2]],
+  showFactors3: false, showLoadings2: false,
   spin: !reducedMotion, plane: true, resid: false,
   yaw: 0.75, pitch: 0.38, hover: -1, ext3: 3, ext2: 3.5,
 };
@@ -607,7 +657,31 @@ function readPalette() {
   });
   dirty2 = dirty3 = true;
 }
-const rampColor = v => pal.ramp[state.colorBy][Math.max(0, Math.min(47, Math.round(((v + 2) / 4) * 47)))];
+const rampColor = v => {
+  const [lo, hi] = state.colorDom[state.colorBy];
+  return pal.ramp[state.colorBy][Math.max(0, Math.min(47, Math.round(((v - lo) / (hi - lo)) * 47)))];
+};
+// colour range follows the data: 2nd to 98th percentile of each true factor, so a
+// zero-inflated factor puts everyone without it at the grey end
+function setColorDomain() {
+  state.colorDom = [0, 1].map(j => {
+    const v = data.F.map(f => f[j]);
+    const lo = quantile(v, 0.02);
+    let hi = quantile(v, 0.98);
+    if (hi - lo < 0.5) hi = quantile(v, 0.999);
+    if (hi - lo < 0.5) hi = lo + 1;
+    return [lo, hi];
+  });
+  updateLegend();
+}
+function updateLegend() {
+  const [lo, hi] = state.colorDom[state.colorBy];
+  document.querySelectorAll('.legend').forEach(l => {
+    l.style.setProperty('--legend-hi', `var(--f${state.colorBy + 1})`);
+    l.querySelector('.lg-lo').textContent = `true F${SUB[state.colorBy]} ${fmtN(lo, 1)}`;
+    l.querySelector('.lg-hi').textContent = `${hi > 0 ? '+' : ''}${fmtN(hi, 1)}`;
+  });
+}
 
 /* ---------- recompute ---------- */
 // value below which a share q of the array falls
@@ -618,6 +692,7 @@ function quantile(arr, q) {
 function recompute() {
   data = generate(state.lam, state.phi, state.n, getBase(state.seed), state.dist, state.active, state.severity);
   state.ext3 = Math.max(3, Math.ceil(quantile(data.Z.map(z => Math.max(...z.map(Math.abs))), 0.995)));
+  setColorDomain();
   refit();
 }
 function refit() {
@@ -704,12 +779,11 @@ document.querySelectorAll('input[name="ext"]').forEach(el => el.addEventListener
 document.querySelectorAll('input[name="rot"]').forEach(el => el.addEventListener('change', () => { state.rotation = el.value; refit(); }));
 document.querySelectorAll('input[name="col"]').forEach(el => el.addEventListener('change', () => {
   state.colorBy = +el.value;
-  document.querySelectorAll('.legend').forEach(l => {
-    l.style.setProperty('--legend-hi', `var(--f${state.colorBy + 1})`);
-    l.firstChild.textContent = `true F${SUB[state.colorBy]} −2 `;
-  });
+  updateLegend();
   dirty2 = dirty3 = true;
 }));
+document.getElementById('factors3').addEventListener('change', e => { state.showFactors3 = e.target.checked; dirty3 = true; });
+document.getElementById('loadings2').addEventListener('change', e => { state.showLoadings2 = e.target.checked; dirty2 = true; });
 document.getElementById('align').addEventListener('change', e => { state.align = e.target.checked; refit(); });
 const spinBox = document.getElementById('spin');
 spinBox.checked = state.spin;
@@ -758,7 +832,7 @@ function updateTable() {
       <td class="f1 group-start">${fmt(fit.P[i][0])}</td><td class="f2">${fmt(fit.P[i][1])}</td><td>${fmt(fit.h2[i])}</td></tr>`;
   }).join('');
   document.getElementById('tbody').innerHTML = rows;
-  const oblique = state.rotation === 'promax';
+  const oblique = state.rotation === 'promax' || state.rotation === 'oblimin';
   document.getElementById('tfoot').innerHTML = `
     <tr><td>Factor correlation</td><td class="group-start" colspan="3">${state.dist === 'normal' ? `φ = ${fmt(state.phi)}` : `r = ${fmt(data.rF)} in this sample`}</td>
       <td class="group-start" colspan="3">φ̂ = ${oblique ? fmt(fit.Phi[0][1]) : '.00 (orthogonal rotation)'}</td></tr>
@@ -921,14 +995,16 @@ function draw3d() {
   drawPoints(items.filter(it => !it.far));
 
   // factor arrows: the direction in x-space that one unit of each factor moves the data
-  const o = P(0, 0, 0);
-  for (let j = 0; j < 2; j++) {
-    const tip = [L[0][j], L[1][j], L[2][j]].map(v => v * 2.6 * ext / 3);
-    const t = P(...tip);
-    arrow(ctx, o[0], o[1], t[0], t[1], pal.f[j], 2.4);
-    const lab = P(...tip.map(v => v * 1.14));
-    ctx.font = '600 13px "IBM Plex Mono", monospace';
-    haloText(ctx, `F${SUB[j]}`, lab[0], lab[1], pal.f[j]);
+  if (state.showFactors3) {
+    const o = P(0, 0, 0);
+    for (let j = 0; j < 2; j++) {
+      const tip = [L[0][j], L[1][j], L[2][j]].map(v => v * 2.6 * ext / 3);
+      const t = P(...tip);
+      arrow(ctx, o[0], o[1], t[0], t[1], pal.f[j], 2.4);
+      const lab = P(...tip.map(v => v * 1.14));
+      ctx.font = '600 13px "IBM Plex Mono", monospace';
+      haloText(ctx, `F${SUB[j]}`, lab[0], lab[1], pal.f[j]);
+    }
   }
   axisLabels();
 
@@ -981,19 +1057,21 @@ function draw2d() {
   ctx.globalAlpha = 1;
 
   // loadings
-  const k = R * 0.7;
-  ctx.setLineDash([4, 4]); ctx.strokeStyle = pal.muted; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(X(0), Y(0), k * s, 0, Math.PI * 2); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.font = '11px "IBM Plex Mono", monospace';
-  haloText(ctx, 'loading = 1', X(k * Math.cos(-0.62)) + 2, Y(k * Math.sin(-0.62)) + 12, pal.muted, 'left');
-  ctx.font = '600 13px "IBM Plex Mono", monospace';
-  for (let i = 0; i < 3; i++) {
-    const lx = fit.P[i][0] * k, ly = fit.P[i][1] * k;
-    arrow(ctx, X(0), Y(0), X(lx), Y(ly), pal.ink, 1.8);
-    const len = Math.hypot(lx, ly) || 1;
-    const off = 0.11 * R;
-    haloText(ctx, `x${SUB[i]}`, X(lx + (lx / len) * off), Y(ly + (ly / len) * off), pal.ink);
+  if (state.showLoadings2) {
+    const k = R * 0.7;
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = pal.muted; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(X(0), Y(0), k * s, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '11px "IBM Plex Mono", monospace';
+    haloText(ctx, 'loading = 1', X(k * Math.cos(-0.62)) + 2, Y(k * Math.sin(-0.62)) + 12, pal.muted, 'left');
+    ctx.font = '600 13px "IBM Plex Mono", monospace';
+    for (let i = 0; i < 3; i++) {
+      const lx = fit.P[i][0] * k, ly = fit.P[i][1] * k;
+      arrow(ctx, X(0), Y(0), X(lx), Y(ly), pal.ink, 1.8);
+      const len = Math.hypot(lx, ly) || 1;
+      const off = 0.11 * R;
+      haloText(ctx, `x${SUB[i]}`, X(lx + (lx / len) * off), Y(ly + (ly / len) * off), pal.ink);
+    }
   }
   ctx.restore();
 
