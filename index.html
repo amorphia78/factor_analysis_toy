@@ -270,9 +270,9 @@ td .vname { font-size: 12.5px; }
           <span>Rotation</span>
           <div class="seg" role="radiogroup" aria-label="Rotation">
             <input type="radio" name="rot" id="rot-none" value="none"><label for="rot-none">None</label>
-            <input type="radio" name="rot" id="rot-varimax" value="varimax"><label for="rot-varimax">Varimax</label>
+            <input type="radio" name="rot" id="rot-varimax" value="varimax" checked><label for="rot-varimax">Varimax</label>
             <input type="radio" name="rot" id="rot-promax" value="promax"><label for="rot-promax">Promax</label>
-            <input type="radio" name="rot" id="rot-oblimin" value="oblimin" checked><label for="rot-oblimin">Oblimin</label>
+            <input type="radio" name="rot" id="rot-oblimin" value="oblimin"><label for="rot-oblimin">Oblimin</label>
           </div>
         </div>
         <label class="check"><input type="checkbox" id="align" checked> Match factor order and sign to the true factors</label>
@@ -610,7 +610,7 @@ const PRESETS = {
 };
 const state = {
   lam: [], phi: 0, n: 300, dist: 'normal', active: 0.25, severity: 1, names: null, seed: 20261014,
-  extraction: 'paf', rotation: 'oblimin', align: true, colorBy: -1, colorDom: [[-2, 2], [-2, 2]],
+  extraction: 'paf', rotation: 'varimax', align: true, colorBy: -1, colorDom: [[-2, 2], [-2, 2]],
   showLoadings2: false,
   spin: !reducedMotion, plane: false, resid: false,
   yaw: 0.75, pitch: 0.38, hover: -1, ext3: 3, ext2: 3.5,
