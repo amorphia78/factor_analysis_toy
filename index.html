@@ -1,0 +1,1092 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Latent Factor Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: control rail with a live path diagram on the left; 3D data view and 2D factor view side by side; loadings table below. */
+:root {
+  color-scheme: light;
+  --bg: #edf0f4;
+  --surface: #fbfcfd;
+  --ink: #18202e;
+  --muted: #5a6476;
+  --rule: #d3d9e2;
+  --f1: #3a4bd1;
+  --f2: #b86b00;
+  --ramp-lo: #c4cbd8;
+  --plane: #5d6e94;
+  --warn: #b4380b;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f131a; --surface: #161b24; --ink: #e3e7ee; --muted: #98a2b4; --rule: #2a3140;
+    --f1: #8d9aff; --f2: #f2a93b; --ramp-lo: #3b4456; --plane: #9aa8c7; --warn: #fb8a4c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f131a; --surface: #161b24; --ink: #e3e7ee; --muted: #98a2b4; --rule: #2a3140;
+  --f1: #8d9aff; --f2: #f2a93b; --ramp-lo: #3b4456; --plane: #9aa8c7; --warn: #fb8a4c;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.wrap { max-width: 1320px; margin: 0 auto; padding: 28px 20px 48px; }
+@media (max-width: 480px) { .wrap { padding-inline: 16px; } }
+
+header { display: grid; gap: 6px; margin-bottom: 22px; max-width: 72ch; }
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(26px, 3.2vw, 34px);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
+}
+header p { margin: 0; color: var(--muted); }
+.eq { font-family: var(--font-mono); font-size: 13px; color: var(--ink); white-space: nowrap; }
+
+.app { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 920px) { .app { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+.controls { padding: 16px; display: grid; gap: 18px; }
+.controls section { display: grid; gap: 10px; }
+.controls section + section { border-top: 1px solid var(--rule); padding-top: 16px; }
+.label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0;
+}
+.row-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+#diagram { width: 100%; height: auto; display: block; }
+#diagram text { font-family: var(--font-mono); fill: var(--ink); }
+
+.var-block { display: grid; gap: 2px; }
+.var-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+.var-head b { font-family: var(--font-mono); font-weight: 500; }
+.h2 { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.h2.capped { color: var(--warn); }
+.slider { display: grid; grid-template-columns: 24px minmax(0, 1fr) 44px; align-items: center; gap: 6px; }
+.slider span { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.slider span:first-child { color: var(--muted); }
+.slider output { font-family: var(--font-mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; margin: 0; }
+.s-f1 { accent-color: var(--f1); }
+.s-f2 { accent-color: var(--f2); }
+.s-ink { accent-color: var(--ink); }
+
+select, button {
+  font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px;
+}
+button { cursor: pointer; font-weight: 500; }
+button:hover, select:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible, canvas:focus-visible { outline: 2px solid var(--f1); outline-offset: 2px; }
+
+.seg { display: flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label {
+  flex: 1; text-align: center; padding: 6px 4px; font-size: 12.5px; cursor: pointer; color: var(--muted);
+  border-left: 1px solid var(--rule); user-select: none;
+}
+.seg label:first-of-type { border-left: 0; }
+.seg input:checked + label { background: var(--ink); color: var(--surface); }
+.seg input:focus-visible + label { outline: 2px solid var(--f1); outline-offset: -2px; }
+.field { display: grid; gap: 5px; }
+.field > span { font-size: 13px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--ink); margin: 0; }
+
+main { display: grid; gap: 16px; min-width: 0; }
+.plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+figure { margin: 0; padding: 14px; display: grid; gap: 8px; min-width: 0; }
+figure header { margin: 0; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; max-width: none; }
+figure h2 { font-family: var(--font-display); font-weight: 600; font-size: 17px; margin: 0; }
+figure .sub { font-size: 12.5px; color: var(--muted); }
+.canvas-box { position: relative; width: 100%; aspect-ratio: 1 / 1; max-width: 100%; }
+.canvas-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 4px; }
+#c3 { cursor: grab; touch-action: pan-y; }
+#c3.dragging { cursor: grabbing; }
+figcaption { font-size: 12.5px; color: var(--muted); }
+.legend { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 64px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, var(--ramp-lo), var(--legend-hi, var(--f1))); }
+
+.readout {
+  padding: 10px 14px; font-family: var(--font-mono); font-size: 12.5px; color: var(--muted);
+  min-height: 42px; display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; font-variant-numeric: tabular-nums;
+}
+.readout b { color: var(--ink); font-weight: 500; }
+
+.results { padding: 16px; display: grid; gap: 14px; }
+.results h2 { font-family: var(--font-display); font-weight: 600; font-size: 17px; margin: 0; }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--rule); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+thead tr:first-child th { border-bottom: 0; padding-bottom: 0; }
+td { font-family: var(--font-mono); font-size: 13px; }
+td.f1 { color: var(--f1); } td.f2 { color: var(--f2); }
+th.f1 { color: var(--f1); } th.f2 { color: var(--f2); }
+.group-start { border-left: 1px solid var(--rule); }
+tfoot td { border-bottom: 0; color: var(--muted); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; margin: 0; }
+.stats div { display: grid; gap: 2px; }
+.stats dt { font-size: 12px; color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--font-mono); font-size: 14px; font-variant-numeric: tabular-nums; }
+.warnline { color: var(--warn); font-size: 13px; margin: 0; }
+.note { font-size: 13.5px; color: var(--muted); margin: 0; max-width: 78ch; }
+.note b { color: var(--ink); font-weight: 600; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+.scenario { font-size: 13px; line-height: 1.45; padding: 10px 12px; border-radius: 6px; background: var(--bg); display: grid; gap: 6px; }
+.scenario p { margin: 0; }
+.scenario b { font-weight: 600; }
+.scenario .f1 { color: var(--f1); font-weight: 600; }
+.scenario .f2 { color: var(--f2); font-weight: 600; }
+.vname { font-family: var(--font-body); font-size: 12px; color: var(--muted); margin-left: 4px; }
+td .vname { font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Latent Factor Explorer</h1>
+    <p>Two latent factors, F₁ and F₂, generate three observed variables: <span class="eq">xᵢ = λᵢ₁F₁ + λᵢ₂F₂ + eᵢ</span>. The 3D view shows the data you would actually measure. The 2D view shows what an exploratory factor analysis recovers from those three columns alone.</p>
+  </header>
+
+  <div class="app">
+    <aside class="panel controls" aria-label="Model and analysis settings">
+      <section>
+        <div class="row-between">
+          <p class="label">Generating model</p>
+          <select id="preset" aria-label="Load a preset">
+            <option value="">Presets…</option>
+            <optgroup label="Toy models">
+              <option value="psychosis">Psychosis and mania (rare)</option>
+              <option value="behaviour">Child behaviour problems</option>
+            </optgroup>
+            <optgroup label="Loading patterns">
+              <option value="simple">Mostly simple structure</option>
+              <option value="correlated">Correlated factors</option>
+              <option value="weak">Weak indicators</option>
+              <option value="onefactor">Nearly one factor</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="scenario" id="scenario" hidden></div>
+        <svg id="diagram" viewBox="0 0 280 196" role="img" aria-label="Path diagram of the generating model">
+          <defs>
+            <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--f1)"/></marker>
+            <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--f2)"/></marker>
+            <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+          </defs>
+          <g id="dg-paths"></g>
+          <path id="dg-phi" d="M 102 30 Q 140 -4 178 30" fill="none" stroke="var(--muted)" stroke-width="1.2" marker-start="url(#ahm)" marker-end="url(#ahm)"/>
+          <text id="dg-phi-t" x="140" y="11" text-anchor="middle" font-size="10.5">φ = .00</text>
+          <circle cx="80" cy="46" r="24" fill="var(--surface)" stroke="var(--f1)" stroke-width="2"/>
+          <circle cx="200" cy="46" r="24" fill="var(--surface)" stroke="var(--f2)" stroke-width="2"/>
+          <text x="80" y="50.5" text-anchor="middle" font-size="13" style="fill:var(--f1)">F₁</text>
+          <text x="200" y="50.5" text-anchor="middle" font-size="13" style="fill:var(--f2)">F₂</text>
+          <g id="dg-obs"></g>
+        </svg>
+        <div id="var-sliders" style="display:grid;gap:10px"></div>
+        <div class="field">
+          <span>Factor distribution</span>
+          <div class="seg" role="radiogroup" aria-label="Factor distribution">
+            <input type="radio" name="dist" id="dist-normal" value="normal"><label for="dist-normal">Normal</label>
+            <input type="radio" name="dist" id="dist-sparse" value="sparse"><label for="dist-sparse">Sparse</label>
+            <input type="radio" name="dist" id="dist-horns" value="horns" checked><label for="dist-horns">Sparse ≥ 0</label>
+          </div>
+          <div class="field" id="active-row">
+            <div class="row-between"><span class="hint">Cases where each factor is present</span><output id="active-o" class="h2" for="active">25%</output></div>
+            <input id="active" class="s-ink" type="range" min="0.01" max="1" step="0.01" value="0.25" aria-label="Share of cases where each factor is present">
+            <span class="hint">Severity when present</span>
+            <div class="seg" role="radiogroup" aria-label="Severity when present">
+              <input type="radio" name="sev" id="sev-1" value="1" checked><label for="sev-1">Mild</label>
+              <input type="radio" name="sev" id="sev-2" value="2"><label for="sev-2">Spread</label>
+              <input type="radio" name="sev" id="sev-3" value="3"><label for="sev-3">Severe</label>
+            </div>
+          </div>
+          <p class="hint" id="dist-hint"></p>
+        </div>
+        <div class="field">
+          <div class="slider" style="grid-template-columns: 24px minmax(0,1fr) 44px">
+            <span>φ</span>
+            <input id="phi" class="s-ink" type="range" min="-0.8" max="0.8" step="0.05" value="0" aria-label="Correlation between F1 and F2">
+            <output id="phi-o" for="phi">.00</output>
+          </div>
+          <div class="slider" style="grid-template-columns: 24px minmax(0,1fr) 44px">
+            <span>n</span>
+            <input id="n" class="s-ink" type="range" min="50" max="3000" step="50" value="300" aria-label="Sample size">
+            <output id="n-o" for="n">300</output>
+          </div>
+        </div>
+        <button id="resample" type="button">Draw a new sample</button>
+      </section>
+
+      <section>
+        <p class="label">Factor analysis</p>
+        <div class="field">
+          <span>Extraction</span>
+          <div class="seg" role="radiogroup" aria-label="Extraction method">
+            <input type="radio" name="ext" id="ext-paf" value="paf" checked><label for="ext-paf">Principal axis</label>
+            <input type="radio" name="ext" id="ext-pca" value="pca"><label for="ext-pca">Principal comp.</label>
+          </div>
+        </div>
+        <div class="field">
+          <span>Rotation</span>
+          <div class="seg" role="radiogroup" aria-label="Rotation">
+            <input type="radio" name="rot" id="rot-none" value="none"><label for="rot-none">None</label>
+            <input type="radio" name="rot" id="rot-varimax" value="varimax" checked><label for="rot-varimax">Varimax</label>
+            <input type="radio" name="rot" id="rot-promax" value="promax"><label for="rot-promax">Promax</label>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="align" checked> Match factor order and sign to the true factors</label>
+      </section>
+
+      <section>
+        <p class="label">View</p>
+        <div class="field">
+          <span>Colour points by</span>
+          <div class="seg" role="radiogroup" aria-label="Colour points by">
+            <input type="radio" name="col" id="col-0" value="0" checked><label for="col-0">True F₁</label>
+            <input type="radio" name="col" id="col-1" value="1"><label for="col-1">True F₂</label>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="spin" checked> Rotate the 3D view</label>
+        <label class="check"><input type="checkbox" id="plane" checked> Show the common-factor plane</label>
+        <label class="check"><input type="checkbox" id="resid"> Show distance to the plane</label>
+      </section>
+    </aside>
+
+    <main>
+      <div class="plots">
+        <figure class="panel">
+          <header>
+            <h2>Observed variables</h2>
+            <span class="legend" id="legend3">true F₁ −2 <i></i> +2</span>
+          </header>
+          <div class="canvas-box"><canvas id="c3" tabindex="0" aria-label="Rotating 3D scatter plot of x1, x2 and x3. Drag or use arrow keys to rotate."></canvas></div>
+          <figcaption>Standardised x₁, x₂, x₃. Drag or use arrow keys to turn. Arrows show the direction each factor pushes the data; the shaded square is the plane they span.</figcaption>
+        </figure>
+        <figure class="panel">
+          <header>
+            <h2>Factor solution</h2>
+            <span class="legend" id="legend2">true F₁ −2 <i></i> +2</span>
+          </header>
+          <div class="canvas-box"><canvas id="c2" aria-label="2D plot of estimated factor scores with loading vectors"></canvas></div>
+          <figcaption>Points are estimated factor scores (regression method). Arrows are each variable’s loadings; the dashed circle marks a loading of 1.</figcaption>
+        </figure>
+      </div>
+
+      <div class="panel readout" id="readout" aria-live="polite">Hover over a point in either plot to compare its true and estimated factor scores.</div>
+
+      <section class="panel results">
+        <h2>Loadings</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th></th><th colspan="3" class="group-start">Generating model</th><th colspan="3" class="group-start">Estimated</th></tr>
+              <tr><th>Variable</th><th class="f1 group-start">λ₁</th><th class="f2">λ₂</th><th>h²</th><th class="f1 group-start">λ̂₁</th><th class="f2">λ̂₂</th><th>ĥ²</th></tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+            <tfoot id="tfoot"></tfoot>
+          </table>
+        </div>
+        <dl class="stats" id="stats"></dl>
+        <p class="warnline" id="warn" hidden></p>
+        <p class="note"><b>Why the solution can wander.</b> Three variables supply six variances and covariances, but a two-factor model has eight free parameters (six loadings and three uniquenesses, less one for rotation). That leaves df = −2, so many different solutions reproduce the correlations equally well. Principal axis factoring still returns one, but its communalities often climb toward 1 (a Heywood case). Switch to principal components to see how much the answer depends on the method, and switch rotations to see that every solution lies in the same plane.</p>
+        <p class="note"><b>The horns are invisible to factor analysis.</b> Extraction uses only the correlation matrix, and a horn-shaped cloud can have exactly the same correlations as a normal ellipse. The loadings you get are the same either way. When a rotation lines its axes up with the horns, that is because the loadings have a simple structure, not because it detected the horns. Your eye in the 3D view sees structure that second-order statistics cannot.</p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+/* MATH START */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const tr = M => M[0].map((_, j) => M.map(r => r[j]));
+const mul = (A, B) => A.map(r => B[0].map((_, j) => r.reduce((s, v, k) => s + v * B[k][j], 0)));
+function inv(M) {
+  const n = M.length;
+  const A = M.map((r, i) => [...r, ...Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < n; c++) {
+    let piv = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+    [A[c], A[piv]] = [A[piv], A[c]];
+    const d = A[c][c];
+    for (let k = 0; k < 2 * n; k++) A[c][k] /= d;
+    for (let r = 0; r < n; r++) if (r !== c) {
+      const f = A[r][c];
+      for (let k = 0; k < 2 * n; k++) A[r][k] -= f * A[c][k];
+    }
+  }
+  return A.map(r => r.slice(n));
+}
+// Jacobi eigendecomposition of a symmetric matrix; eigenvectors are columns, sorted by descending eigenvalue
+function eig(S) {
+  const n = S.length, a = S.map(r => r.slice());
+  const v = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)));
+  for (let sweep = 0; sweep < 100; sweep++) {
+    let off = 0;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) off += a[p][q] * a[p][q];
+    if (off < 1e-20) break;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) {
+      if (Math.abs(a[p][q]) < 1e-18) continue;
+      const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+      const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      for (let k = 0; k < n; k++) { const kp = a[k][p], kq = a[k][q]; a[k][p] = c * kp - s * kq; a[k][q] = s * kp + c * kq; }
+      for (let k = 0; k < n; k++) { const pk = a[p][k], qk = a[q][k]; a[p][k] = c * pk - s * qk; a[q][k] = s * pk + c * qk; }
+      for (let k = 0; k < n; k++) { const kp = v[k][p], kq = v[k][q]; v[k][p] = c * kp - s * kq; v[k][q] = s * kp + c * kq; }
+    }
+  }
+  const order = a.map((r, i) => i).sort((i, j) => a[j][j] - a[i][i]);
+  return { values: order.map(i => a[i][i]), vectors: v.map(r => order.map(i => r[i])) };
+}
+function loadingsFromEig(e, m) {
+  return e.vectors.map(r => Array.from({ length: m }, (_, j) => r[j] * Math.sqrt(Math.max(e.values[j], 0))));
+}
+function paf(R, m = 2) {
+  const Ri = inv(R);
+  let h = Ri.map((r, i) => 1 - 1 / r[i]); // squared multiple correlations
+  let L, heywood = false, converged = false, iter = 0;
+  for (iter = 1; iter <= 1000; iter++) {
+    const Rr = R.map((r, i) => r.map((v, j) => (i === j ? h[i] : v)));
+    L = loadingsFromEig(eig(Rr), m);
+    let capped = false;
+    const hn = L.map(r => {
+      const s = r.reduce((a, v) => a + v * v, 0);
+      if (s > 0.995) { capped = true; return 0.995; }
+      return s;
+    });
+    const diff = Math.max(...hn.map((x, i) => Math.abs(x - h[i])));
+    h = hn; heywood = capped;
+    if (diff < 1e-7) { converged = true; break; }
+  }
+  return { L, iter: Math.min(iter, 1000), heywood, converged };
+}
+function varimax(L) {
+  const p = L.length;
+  const h = L.map(r => Math.hypot(r[0], r[1]) || 1);
+  let X = L.map((r, i) => [r[0] / h[i], r[1] / h[i]]);
+  for (let it = 0; it < 100; it++) {
+    let A = 0, B = 0, C = 0, D = 0;
+    for (const [x, y] of X) { const u = x * x - y * y, v = 2 * x * y; A += u; B += v; C += u * u - v * v; D += 2 * u * v; }
+    const ang = Math.atan2(D - (2 * A * B) / p, C - (A * A - B * B) / p) / 4;
+    if (Math.abs(ang) < 1e-12) break;
+    const c = Math.cos(ang), s = Math.sin(ang);
+    X = X.map(([x, y]) => [x * c + y * s, -x * s + y * c]);
+  }
+  return X.map((r, i) => [r[0] * h[i], r[1] * h[i]]);
+}
+// Promax (power 4) applied to varimax loadings, following R's stats::promax
+function promax(V, power = 4) {
+  const Q = V.map(r => r.map(v => v * Math.pow(Math.abs(v), power - 1)));
+  const Vt = tr(V);
+  let U = mul(inv(mul(Vt, V)), mul(Vt, Q));
+  const d = inv(mul(tr(U), U)).map((r, i) => r[i]);
+  U = U.map(r => r.map((v, j) => v * Math.sqrt(d[j])));
+  const P = mul(V, U);
+  const Phi = inv(mul(tr(U), U));
+  return { P, Phi };
+}
+function corr(a, b) {
+  const n = a.length;
+  let ma = 0, mb = 0;
+  for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
+  ma /= n; mb /= n;
+  let sab = 0, saa = 0, sbb = 0;
+  for (let i = 0; i < n; i++) { const da = a[i] - ma, db = b[i] - mb; sab += da * db; saa += da * da; sbb += db * db; }
+  return sab / Math.sqrt(saa * sbb);
+}
+// Upper-tail normal quantile (Abramowitz & Stegun 26.2.23): z such that P(Z > z) = q
+function zUpper(q) {
+  if (q >= 1) return -Infinity;
+  if (q <= 0) return Infinity;
+  const s = q > 0.5 ? 1 - q : q, t = Math.sqrt(-2 * Math.log(s));
+  const z = t - (2.515517 + 0.802853 * t + 0.010328 * t * t) / (1 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t);
+  return q > 0.5 ? -z : z;
+}
+// base rows: [z1, z2, e1, e2, e3, then three severity draws per factor], all standard normal
+// normal: F is bivariate normal with correlation phi
+// sparse: each factor is present for a share `active` of cases (who has which is linked through phi);
+//         where present its severity follows a chi distribution with `shape` df
+//         (1 = half-normal, piled near zero; 2 = Rayleigh; 3 = Maxwell, mostly well above zero),
+//         signed at random for 'sparse', positive for 'horns'; otherwise 0
+function generate(lam, phi, n, base, dist = 'normal', active = 1, shape = 1) {
+  const k = Math.sqrt(1 - phi * phi);
+  let F = [];
+  if (dist === 'normal') {
+    for (let i = 0; i < n; i++) F.push([base[i][0], phi * base[i][0] + k * base[i][1]]);
+  } else {
+    const thr = zUpper(active);
+    for (let i = 0; i < n; i++) {
+      const b = base[i], z = [b[0], phi * b[0] + k * b[1]];
+      F.push([0, 1].map(j => {
+        if (z[j] <= thr) return 0;
+        let sev = 0;
+        for (let t = 0; t < shape; t++) sev += b[5 + 3 * j + t] ** 2;
+        sev = Math.sqrt(sev);
+        return dist === 'horns' || b[5 + 3 * j] >= 0 ? sev : -sev;
+      }));
+    }
+    // standardise so loadings keep their usual meaning
+    const st = [0, 1].map(j => {
+      const m = F.reduce((s, f) => s + f[j], 0) / n;
+      const sd = Math.sqrt(F.reduce((s, f) => s + (f[j] - m) ** 2, 0) / (n - 1)) || 1;
+      return [m, sd];
+    });
+    F = F.map(f => f.map((v, j) => (v - st[j][0]) / st[j][1]));
+  }
+  const rF = dist === 'normal' ? phi : corr(F.map(f => f[0]), F.map(f => f[1])) || 0;
+  const truth = lam.map(([a, c]) => {
+    const h2 = a * a + c * c + 2 * rF * a * c;
+    const psi = Math.max(0.02, 1 - h2);
+    return { h2, psi, capped: 1 - h2 < 0.02, sd: Math.sqrt(h2 + psi) };
+  });
+  const X = F.map((f, i) => lam.map(([a, c], j) => a * f[0] + c * f[1] + Math.sqrt(truth[j].psi) * base[i][2 + j]));
+  const means = [0, 1, 2].map(j => X.reduce((s, r) => s + r[j], 0) / n);
+  const sds = [0, 1, 2].map(j => Math.sqrt(X.reduce((s, r) => s + (r[j] - means[j]) ** 2, 0) / (n - 1)));
+  const Z = X.map(r => r.map((v, j) => (v - means[j]) / sds[j]));
+  return { F, Z, truth, rF };
+}
+function analyse(Z, F, opts) {
+  const n = Z.length, p = 3;
+  const R = Array.from({ length: p }, (_, i) => Array.from({ length: p }, (_, j) => {
+    let s = 0;
+    for (let k = 0; k < n; k++) s += Z[k][i] * Z[k][j];
+    return s / (n - 1);
+  }));
+  const eR = eig(R);
+  let L, info = {};
+  if (opts.extraction === 'paf') { info = paf(R); L = info.L; }
+  else L = loadingsFromEig(eR, 2);
+  let P = L, Phi = [[1, 0], [0, 1]];
+  if (opts.rotation === 'varimax') P = varimax(L);
+  if (opts.rotation === 'promax') ({ P, Phi } = promax(varimax(L)));
+  const W = mul(inv(R), mul(P, Phi));
+  let S = Z.map(z => [0, 1].map(j => z[0] * W[0][j] + z[1] * W[1][j] + z[2] * W[2][j]));
+  const col = (M, j) => M.map(r => r[j]);
+  const Ft = [col(F, 0), col(F, 1)];
+  if (opts.align) {
+    const c = [[corr(col(S, 0), Ft[0]), corr(col(S, 0), Ft[1])], [corr(col(S, 1), Ft[0]), corr(col(S, 1), Ft[1])]];
+    if (Math.abs(c[0][1]) + Math.abs(c[1][0]) > Math.abs(c[0][0]) + Math.abs(c[1][1])) {
+      P = P.map(r => [r[1], r[0]]);
+      S = S.map(r => [r[1], r[0]]);
+      Phi = [[Phi[1][1], Phi[1][0]], [Phi[0][1], Phi[0][0]]];
+    }
+  }
+  const sign = [0, 1].map(j => {
+    const v = opts.align ? corr(col(S, j), Ft[j]) : P.reduce((s, r) => s + r[j], 0);
+    return v < 0 ? -1 : 1;
+  });
+  P = P.map(r => [r[0] * sign[0], r[1] * sign[1]]);
+  S = S.map(r => [r[0] * sign[0], r[1] * sign[1]]);
+  Phi = [[1, Phi[0][1] * sign[0] * sign[1]], [Phi[1][0] * sign[0] * sign[1], 1]];
+  const h2 = P.map(r => r[0] * r[0] * Phi[0][0] + r[1] * r[1] * Phi[1][1] + 2 * r[0] * r[1] * Phi[0][1]);
+  const ss = [0, 1].map(j => P.reduce((s, r) => s + r[j] * r[j], 0));
+  const recovery = [corr(col(S, 0), Ft[0]), corr(col(S, 1), Ft[1])];
+  return { R, eigen: eR.values, L, P, Phi, S, h2, ss, recovery, info };
+}
+/* MATH END */
+
+/* ---------- state ---------- */
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SCENARIOS = {
+  psychosis: {
+    f: ['schizophrenia spectrum', 'bipolar mania'],
+    x: ['negative symptoms', 'elevated mood', 'delusions'],
+    html: `<p><b>Psychosis and mania.</b> A toy model of a community mental-health survey.</p>
+      <p><span class="f1">F₁ schizophrenia spectrum</span> and <span class="f2">F₂ bipolar mania</span> are each present in 4% of people here. Real lifetime rates are nearer 1%; they are raised so each horn has enough points.</p>
+      <p>x₁ negative symptoms (flat affect, withdrawal) mark F₁ and x₂ elevated mood (with little need for sleep) marks F₂. x₃ delusions occur in both: persecutory in one, grandiose in the other.</p>
+      <p>Almost everyone sits in the tight knot of healthy people at the base. Raise φ to add people with both, roughly the schizoaffective picture.</p>`,
+  },
+  behaviour: {
+    f: ['internalising', 'externalising'],
+    x: ['emotional symptoms', 'conduct problems', 'irritability'],
+    html: `<p><b>Child behaviour problems.</b> A toy model of teacher ratings in a school sample.</p>
+      <p><span class="f1">F₁ internalising</span> (anxiety, low mood) and <span class="f2">F₂ externalising</span> (defiance, aggression) can’t go below zero, and each is present in only a minority of children.</p>
+      <p>x₁ emotional symptoms and x₂ conduct problems each track one factor. x₃ irritability is the classic bridge symptom, loading on both.</p>
+      <p>Most children cluster near zero; those with problems spread out along one horn or the other. In real samples the two factors are positively correlated, so raise φ and watch the gap between the horns fill in.</p>`,
+  },
+};
+const PRESETS = {
+  psychosis: { lam: [[0.95, 0.05], [0.05, 0.95], [0.65, 0.65]], phi: 0.15, dist: 'horns', active: 0.04, severity: 2, n: 3000, names: 'psychosis' },
+  behaviour: { lam: [[0.95, 0.05], [0.05, 0.95], [0.70, 0.65]], phi: 0.1, dist: 'horns', active: 0.2, severity: 1, n: 800, names: 'behaviour' },
+  simple: { lam: [[0.85, 0.05], [0.10, 0.80], [0.55, 0.55]], phi: 0 },
+  correlated: { lam: [[0.85, 0.05], [0.10, 0.80], [0.55, 0.55]], phi: 0.5 },
+  weak: { lam: [[0.50, 0.10], [0.10, 0.45], [0.35, 0.40]], phi: 0 },
+  onefactor: { lam: [[0.80, 0.10], [0.75, 0.15], [0.70, 0.20]], phi: 0 },
+};
+const state = {
+  lam: [], phi: 0, n: 300, dist: 'normal', active: 0.25, severity: 1, names: null, seed: 20261014,
+  extraction: 'paf', rotation: 'varimax', align: true, colorBy: 0,
+  spin: !reducedMotion, plane: true, resid: false,
+  yaw: 0.75, pitch: 0.38, hover: -1, ext3: 3, ext2: 3.5,
+};
+function applyPreset(key) {
+  const p = PRESETS[key];
+  state.lam = p.lam.map(r => r.slice()); state.phi = p.phi;
+  if (p.dist) state.dist = p.dist;
+  if (p.active) state.active = p.active;
+  if (p.severity) state.severity = p.severity;
+  if (p.n) state.n = p.n;
+  state.names = p.names ? SCENARIOS[p.names] : null;
+}
+applyPreset('psychosis');
+let data, fit;
+let base = null, baseSeed = null;
+function getBase(seed) {
+  if (baseSeed === seed) return base;
+  const rnd = mulberry32(seed);
+  const g = () => { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+  base = Array.from({ length: 3000 }, () => Array.from({ length: 11 }, g));
+  baseSeed = seed;
+  return base;
+}
+
+const fmt = (v, d = 2) => (Number.isFinite(v) ? (v < -0.005 ? '−' : '') + Math.abs(v).toFixed(d).replace(/^0(?=\.)/, '') : '—');
+const fmtN = (v, d = 2) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+const SUB = ['₁', '₂', '₃'];
+
+/* ---------- colours ---------- */
+let pal = {};
+function hexToRgb(h) {
+  h = h.trim().replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function readPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  const get = k => cs.getPropertyValue(k).trim();
+  pal = { ink: get('--ink'), muted: get('--muted'), rule: get('--rule'), surface: get('--surface'),
+    f: [get('--f1'), get('--f2')], plane: hexToRgb(get('--plane')) };
+  const lo = hexToRgb(get('--ramp-lo'));
+  pal.ramp = pal.f.map(fc => {
+    const hi = hexToRgb(fc);
+    return Array.from({ length: 48 }, (_, i) => {
+      const t = i / 47;
+      return `rgb(${lo.map((v, k) => Math.round(v + (hi[k] - v) * t)).join(',')})`;
+    });
+  });
+  dirty2 = dirty3 = true;
+}
+const rampColor = v => pal.ramp[state.colorBy][Math.max(0, Math.min(47, Math.round(((v + 2) / 4) * 47)))];
+
+/* ---------- recompute ---------- */
+// value below which a share q of the array falls
+function quantile(arr, q) {
+  const s = Float64Array.from(arr).sort();
+  return s[Math.min(s.length - 1, Math.floor(q * s.length))];
+}
+function recompute() {
+  data = generate(state.lam, state.phi, state.n, getBase(state.seed), state.dist, state.active, state.severity);
+  state.ext3 = Math.max(3, Math.ceil(quantile(data.Z.map(z => Math.max(...z.map(Math.abs))), 0.995)));
+  refit();
+}
+function refit() {
+  fit = analyse(data.Z, data.F, state);
+  state.ext2 = Math.max(3.5, Math.ceil(quantile(fit.S.map(s => Math.max(Math.abs(s[0]), Math.abs(s[1]))), 0.995)) + 0.5);
+  if (state.hover >= state.n) state.hover = -1;
+  updateDiagram(); updateTable(); updateReadout();
+  dirty2 = dirty3 = true;
+}
+
+/* ---------- controls ---------- */
+const sliderHost = document.getElementById('var-sliders');
+sliderHost.innerHTML = [0, 1, 2].map(i => `
+  <div class="var-block">
+    <div class="var-head"><span><b>x${SUB[i]}</b><span class="vname" id="vname-${i}"></span></span><span class="h2" id="h2-${i}"></span></div>
+    ${[0, 1].map(j => `
+      <div class="slider">
+        <span>F${SUB[j]}</span>
+        <input id="lam-${i}-${j}" class="s-f${j + 1}" type="range" min="-1" max="1" step="0.05" aria-label="Loading of x${i + 1} on F${j + 1}">
+        <output id="lam-${i}-${j}-o" for="lam-${i}-${j}"></output>
+      </div>`).join('')}
+  </div>`).join('');
+
+function syncInputs() {
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+    document.getElementById(`lam-${i}-${j}`).value = state.lam[i][j];
+    document.getElementById(`lam-${i}-${j}-o`).textContent = fmt(state.lam[i][j]);
+  }
+  document.getElementById('phi').value = state.phi;
+  document.getElementById('phi-o').textContent = fmt(state.phi);
+  document.getElementById('n').value = state.n;
+  document.getElementById('n-o').textContent = state.n;
+  document.getElementById(`dist-${state.dist}`).checked = true;
+  document.getElementById('active').value = state.active;
+  document.getElementById(`sev-${state.severity}`).checked = true;
+  syncDist();
+  const card = document.getElementById('scenario');
+  card.hidden = !state.names;
+  card.innerHTML = state.names ? state.names.html : '';
+  for (let i = 0; i < 3; i++) document.getElementById(`vname-${i}`).textContent = state.names ? state.names.x[i] : '';
+}
+function syncDist() {
+  const pct = Math.round(state.active * 100);
+  document.getElementById('active-o').textContent = `${pct}%`;
+  document.getElementById('active-row').hidden = state.dist === 'normal';
+  document.getElementById('dist-hint').textContent = state.dist === 'normal'
+    ? 'Both factors are normally distributed, so the cloud is always an ellipse, whatever the loadings.'
+    : `Each factor is zero for ${100 - pct}% of cases${state.dist === 'horns' ? ' and positive for the rest' : ''}. Mild piles those cases up near zero; Spread and Severe move them further out along the horns. φ sets how often the two occur together.`;
+}
+document.querySelectorAll('input[name="dist"]').forEach(el => el.addEventListener('change', () => {
+  state.dist = el.value; syncDist(); recompute();
+}));
+document.getElementById('active').addEventListener('input', e => {
+  state.active = +e.target.value; syncDist(); recompute();
+});
+document.querySelectorAll('input[name="sev"]').forEach(el => el.addEventListener('change', () => {
+  state.severity = +el.value; recompute();
+}));
+for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+  document.getElementById(`lam-${i}-${j}`).addEventListener('input', e => {
+    state.lam[i][j] = +e.target.value;
+    document.getElementById(`lam-${i}-${j}-o`).textContent = fmt(state.lam[i][j]);
+    document.getElementById('preset').value = '';
+    recompute();
+  });
+}
+document.getElementById('phi').addEventListener('input', e => {
+  state.phi = +e.target.value; document.getElementById('phi-o').textContent = fmt(state.phi);
+  document.getElementById('preset').value = '';
+  recompute();
+});
+document.getElementById('n').addEventListener('input', e => {
+  state.n = +e.target.value; document.getElementById('n-o').textContent = state.n; recompute();
+});
+document.getElementById('resample').addEventListener('click', () => {
+  state.seed = (Math.random() * 2 ** 31) | 0; recompute();
+});
+document.getElementById('preset').addEventListener('change', e => {
+  if (!PRESETS[e.target.value]) return;
+  applyPreset(e.target.value);
+  syncInputs(); recompute();
+});
+document.querySelectorAll('input[name="ext"]').forEach(el => el.addEventListener('change', () => { state.extraction = el.value; refit(); }));
+document.querySelectorAll('input[name="rot"]').forEach(el => el.addEventListener('change', () => { state.rotation = el.value; refit(); }));
+document.querySelectorAll('input[name="col"]').forEach(el => el.addEventListener('change', () => {
+  state.colorBy = +el.value;
+  document.querySelectorAll('.legend').forEach(l => {
+    l.style.setProperty('--legend-hi', `var(--f${state.colorBy + 1})`);
+    l.firstChild.textContent = `true F${SUB[state.colorBy]} −2 `;
+  });
+  dirty2 = dirty3 = true;
+}));
+document.getElementById('align').addEventListener('change', e => { state.align = e.target.checked; refit(); });
+const spinBox = document.getElementById('spin');
+spinBox.checked = state.spin;
+spinBox.addEventListener('change', e => { state.spin = e.target.checked; });
+document.getElementById('plane').addEventListener('change', e => { state.plane = e.target.checked; dirty3 = true; });
+document.getElementById('resid').addEventListener('change', e => { state.resid = e.target.checked; dirty3 = true; });
+
+/* ---------- path diagram ---------- */
+function updateDiagram() {
+  const fx = [80, 200], fy = 46, r = 24, ox = [50, 140, 230], oyTop = 112, oh = 32, ow = 44;
+  let paths = '';
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+    const l = state.lam[i][j];
+    if (Math.abs(l) < 0.005) continue;
+    const ex = ox[i] + (j === 0 ? -7 : 7), ey = oyTop - 1;
+    const dx = ex - fx[j], dy = ey - fy, d = Math.hypot(dx, dy);
+    const sx = fx[j] + (dx / d) * r, sy = fy + (dy / d) * r;
+    paths += `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex}" y2="${ey}" stroke="var(--f${j + 1})" stroke-width="${(0.6 + 4 * Math.abs(l)).toFixed(2)}" stroke-opacity="${(0.3 + 0.7 * Math.abs(l)).toFixed(2)}" ${l < 0 ? 'stroke-dasharray="4 3"' : ''} marker-end="url(#ah${j + 1})"/>`;
+  }
+  document.getElementById('dg-paths').innerHTML = paths;
+  let obs = '';
+  for (let i = 0; i < 3; i++) {
+    const t = data.truth[i];
+    obs += `<rect x="${ox[i] - ow / 2}" y="${oyTop}" width="${ow}" height="${oh}" rx="3" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/>
+      <text x="${ox[i]}" y="${oyTop + 20.5}" text-anchor="middle" font-size="13">x${SUB[i]}</text>
+      <line x1="${ox[i]}" y1="${oyTop + oh + 30}" x2="${ox[i]}" y2="${oyTop + oh + 1}" stroke="var(--muted)" stroke-width="${(0.6 + 3 * Math.sqrt(t.psi)).toFixed(2)}" marker-end="url(#ahm)"/>
+      <text x="${ox[i] + 6}" y="${oyTop + oh + 27}" font-size="10" style="fill:var(--muted)">e${SUB[i]}</text>`;
+    const h = document.getElementById(`h2-${i}`);
+    h.textContent = t.capped ? `h² capped at .98` : `h² = ${fmt(t.h2)}`;
+    h.classList.toggle('capped', t.capped);
+  }
+  document.getElementById('dg-obs').innerHTML = obs;
+  const phiOn = Math.abs(state.phi) >= 0.005;
+  document.getElementById('dg-phi').setAttribute('stroke-opacity', phiOn ? 1 : 0.25);
+  document.getElementById('dg-phi').setAttribute('stroke-dasharray', state.phi < 0 ? '4 3' : 'none');
+  document.getElementById('dg-phi-t').textContent = `φ = ${fmt(state.phi)}`;
+  document.getElementById('dg-phi-t').style.opacity = phiOn ? 1 : 0.45;
+}
+
+/* ---------- table ---------- */
+function updateTable() {
+  const rows = [0, 1, 2].map(i => {
+    const t = data.truth[i], sd = t.sd;
+    return `<tr><td>x${SUB[i]}${state.names ? `<span class="vname">${state.names.x[i]}</span>` : ''}</td>
+      <td class="group-start">${fmt(state.lam[i][0] / sd)}</td><td>${fmt(state.lam[i][1] / sd)}</td><td>${fmt(t.h2 / (sd * sd))}</td>
+      <td class="f1 group-start">${fmt(fit.P[i][0])}</td><td class="f2">${fmt(fit.P[i][1])}</td><td>${fmt(fit.h2[i])}</td></tr>`;
+  }).join('');
+  document.getElementById('tbody').innerHTML = rows;
+  const oblique = state.rotation === 'promax';
+  document.getElementById('tfoot').innerHTML = `
+    <tr><td>Factor correlation</td><td class="group-start" colspan="3">${state.dist === 'normal' ? `φ = ${fmt(state.phi)}` : `r = ${fmt(data.rF)} in this sample`}</td>
+      <td class="group-start" colspan="3">φ̂ = ${oblique ? fmt(fit.Phi[0][1]) : '.00 (orthogonal rotation)'}</td></tr>
+    <tr><td>Sum of squared loadings</td><td class="group-start" colspan="3"></td>
+      <td class="f1 group-start">${fmtN(fit.ss[0])}</td><td class="f2">${fmtN(fit.ss[1])}</td><td></td></tr>`;
+  const ext = state.extraction === 'paf'
+    ? (fit.info.converged ? `${fit.info.iter} iterations` : `stopped at ${fit.info.iter} iterations`)
+    : 'closed form';
+  document.getElementById('stats').innerHTML = `
+    <div><dt>Eigenvalues of R</dt><dd>${fit.eigen.map(v => fmtN(v)).join(' · ')}</dd></div>
+    <div><dt>Score recovery, r(F̂, F)</dt><dd><span style="color:var(--f1)">${fmt(fit.recovery[0])}</span> · <span style="color:var(--f2)">${fmt(fit.recovery[1])}</span></dd></div>
+    <div><dt>Extraction</dt><dd>${state.extraction === 'paf' ? 'Principal axis' : 'Principal components'}, ${ext}</dd></div>`;
+  const warn = document.getElementById('warn');
+  const msgs = [];
+  if (state.extraction === 'paf' && fit.info.heywood) msgs.push('Heywood case: at least one estimated communality reached the .995 ceiling.');
+  if (data.truth.some(t => t.capped)) msgs.push('Some loadings imply a communality above .98, so that variable’s noise was held at a minimum of .02.');
+  warn.hidden = !msgs.length;
+  warn.textContent = msgs.join(' ');
+}
+
+function updateReadout() {
+  const el = document.getElementById('readout');
+  const i = state.hover;
+  if (i < 0) { el.innerHTML = 'Hover over a point in either plot to compare its true and estimated factor scores.'; return; }
+  const z = data.Z[i], f = data.F[i], s = fit.S[i];
+  el.innerHTML = `<span>Case <b>${i + 1}</b></span>
+    <span>z = (<b>${z.map(v => fmtN(v)).join(', ')}</b>)</span>
+    <span>true F = (<b style="color:var(--f1)">${fmtN(f[0])}</b>, <b style="color:var(--f2)">${fmtN(f[1])}</b>)</span>
+    <span>estimated F̂ = (<b style="color:var(--f1)">${fmtN(s[0])}</b>, <b style="color:var(--f2)">${fmtN(s[1])}</b>)</span>`;
+}
+function setHover(i) {
+  if (i === state.hover) return;
+  state.hover = i; updateReadout(); dirty2 = dirty3 = true;
+}
+
+/* ---------- canvas sizing ---------- */
+const c3 = document.getElementById('c3'), c2 = document.getElementById('c2');
+let dirty2 = true, dirty3 = true;
+function fitCanvas(c) {
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+new ResizeObserver(() => { dirty2 = dirty3 = true; }).observe(document.querySelector('.plots'));
+
+/* ---------- 3D view ---------- */
+let proj3 = { x: new Float32Array(3000), y: new Float32Array(3000), d: new Float32Array(3000) };
+const dotSize = () => 2.7 * Math.max(0.6, Math.min(1, Math.sqrt(800 / state.n)));
+function draw3d() {
+  const { ctx, w, h } = fitCanvas(c3);
+  ctx.clearRect(0, 0, w, h);
+  const cy = Math.cos(state.yaw), sy = Math.sin(state.yaw), cp = Math.cos(state.pitch), sp = Math.sin(state.pitch);
+  const ext = state.ext3, tickStep = ext > 5 ? 2 : 1;
+  const D = 16 * ext / 3, scale = Math.min(w, h) / (ext * 2.87), ox = w / 2, oy = h / 2 + scale * 0.1;
+  const P = (x, y, z) => {
+    const x1 = x * cy - y * sy, y1 = x * sy + y * cy;
+    const d = y1 * cp - z * sp, zz = z * cp + y1 * sp;
+    const s = (scale * D) / (D + d);
+    return [ox + x1 * s, oy - zz * s, d, s / scale];
+  };
+  const line = (a, b) => { const p = P(...a), q = P(...b); ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); };
+
+  // axes
+  ctx.lineWidth = 1;
+  ctx.font = '500 13px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let k = 0; k < 3; k++) {
+    const a = [0, 0, 0], b = [0, 0, 0];
+    a[k] = -ext; b[k] = ext;
+    ctx.strokeStyle = pal.rule; line(a, b);
+    ctx.fillStyle = pal.muted;
+    for (let t = -ext; t <= ext; t += tickStep) {
+      if (!t) continue;
+      const q = [0, 0, 0]; q[k] = t;
+      const p = P(...q);
+      ctx.beginPath(); ctx.arc(p[0], p[1], 1.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  const axisLabels = () => {
+    for (let k = 0; k < 3; k++) {
+      const lab = [0, 0, 0]; lab[k] = ext + 0.45;
+      const p = P(...lab);
+      ctx.font = '500 13px "IBM Plex Mono", monospace';
+      haloText(ctx, `x${SUB[k]}`, p[0], p[1], pal.ink);
+      if (state.names) {
+        ctx.font = '11px "IBM Plex Sans", sans-serif';
+        haloText(ctx, state.names.x[k], p[0], p[1] + 14, pal.muted);
+      }
+    }
+  };
+
+  // plane basis from the loading columns (orthonormalised)
+  const L = fit.P;
+  const c1 = [L[0][0], L[1][0], L[2][0]], c2v = [L[0][1], L[1][1], L[2][1]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const nrm = a => { const m = Math.sqrt(dot(a, a)) || 1; return a.map(v => v / m); };
+  const e1 = nrm(c1);
+  const e2 = nrm(c2v.map((v, k) => v - dot(c2v, e1) * e1[k]));
+  const nv = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+  const cam = [-D * cp * sy, -D * cp * cy, D * sp];
+  const camSide = Math.sign(dot(nv, cam)) || 1;
+
+  const n = state.n, Z = data.Z, F = data.F;
+  const items = [];
+  for (let i = 0; i < n; i++) {
+    const p = P(Z[i][0], Z[i][1], Z[i][2]);
+    proj3.x[i] = p[0]; proj3.y[i] = p[1]; proj3.d[i] = p[2];
+    items.push({ i, p, far: state.plane && Math.sign(dot(nv, Z[i])) !== camSide });
+  }
+  items.sort((a, b) => b.p[2] - a.p[2]);
+
+  const drawPoints = list => {
+    for (const it of list) {
+      const r = dotSize() * it.p[3];
+      ctx.globalAlpha = it.far ? 0.5 : 0.95;
+      ctx.fillStyle = rampColor(F[it.i][state.colorBy]);
+      ctx.beginPath(); ctx.arc(it.p[0], it.p[1], r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  if (state.resid) {
+    ctx.strokeStyle = pal.muted; ctx.globalAlpha = 0.45; ctx.lineWidth = 0.8;
+    for (let i = 0; i < n; i++) {
+      const z = Z[i], a = dot(z, e1), b = dot(z, e2);
+      line(z, [0, 1, 2].map(k => a * e1[k] + b * e2[k]));
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  drawPoints(items.filter(it => it.far));
+
+  if (state.plane) {
+    // fit the plane to where the data sit in it, with a small margin
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const a = dot(Z[i], e1), b = dot(Z[i], e2);
+      if (a < a0) a0 = a; if (a > a1) a1 = a; if (b < b0) b0 = b; if (b > b1) b1 = b;
+    }
+    a0 = Math.max(-ext, Math.floor(a0 - 0.3)); a1 = Math.min(ext, Math.ceil(a1 + 0.3));
+    b0 = Math.max(-ext, Math.floor(b0 - 0.3)); b1 = Math.min(ext, Math.ceil(b1 + 0.3));
+    const pt = (a, b) => P(...[0, 1, 2].map(k => a * e1[k] + b * e2[k]));
+    const cs = [pt(a0, b0), pt(a1, b0), pt(a1, b1), pt(a0, b1)];
+    const [pr, pg, pb] = pal.plane;
+    ctx.fillStyle = `rgba(${pr},${pg},${pb},0.16)`;
+    ctx.beginPath(); cs.forEach((c, k) => (k ? ctx.lineTo(c[0], c[1]) : ctx.moveTo(c[0], c[1]))); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = `rgba(${pr},${pg},${pb},0.28)`; ctx.lineWidth = 0.8;
+    for (let t = a0; t <= a1; t++) {
+      const p = pt(t, b0), q = pt(t, b1);
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+    }
+    for (let t = b0; t <= b1; t++) {
+      const p = pt(a0, t), q = pt(a1, t);
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+    }
+  }
+
+  drawPoints(items.filter(it => !it.far));
+
+  // factor arrows: the direction in x-space that one unit of each factor moves the data
+  const o = P(0, 0, 0);
+  for (let j = 0; j < 2; j++) {
+    const tip = [L[0][j], L[1][j], L[2][j]].map(v => v * 2.6 * ext / 3);
+    const t = P(...tip);
+    arrow(ctx, o[0], o[1], t[0], t[1], pal.f[j], 2.4);
+    const lab = P(...tip.map(v => v * 1.14));
+    ctx.font = '600 13px "IBM Plex Mono", monospace';
+    haloText(ctx, `F${SUB[j]}`, lab[0], lab[1], pal.f[j]);
+  }
+  axisLabels();
+
+  if (state.hover >= 0) ring(ctx, proj3.x[state.hover], proj3.y[state.hover]);
+}
+
+/* ---------- 2D view ---------- */
+let proj2 = { x: new Float32Array(3000), y: new Float32Array(3000) };
+function draw2d() {
+  const { ctx, w, h } = fitCanvas(c2);
+  ctx.clearRect(0, 0, w, h);
+  const padL = 40, padB = 38, padT = 10, padR = 10;
+  const R = state.ext2, tickStep = R > 6 ? 2 : 1, tMax = Math.floor(R / tickStep) * tickStep;
+  const side = Math.min(w - padL - padR, h - padT - padB);
+  const s = side / (2 * R);
+  const x0 = padL + (w - padL - padR - side) / 2, y0 = padT + (h - padT - padB - side) / 2;
+  const X = v => x0 + (v + R) * s, Y = v => y0 + (R - v) * s;
+
+  // grid
+  ctx.lineWidth = 1;
+  ctx.font = '11px "IBM Plex Mono", monospace';
+  ctx.fillStyle = pal.muted;
+  for (let t = -tMax; t <= tMax; t += tickStep) {
+    ctx.strokeStyle = pal.rule; ctx.globalAlpha = t === 0 ? 1 : 0.55;
+    ctx.beginPath(); ctx.moveTo(X(t), Y(-R)); ctx.lineTo(X(t), Y(R)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X(-R), Y(t)); ctx.lineTo(X(R), Y(t)); ctx.stroke();
+    ctx.globalAlpha = 1;
+    const lab = t < 0 ? `−${-t}` : `${t}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(lab, X(t), Y(-R) + 5);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(lab, X(-R) - 6, Y(t));
+  }
+  ctx.font = '600 12.5px "IBM Plex Sans", sans-serif';
+  ctx.fillStyle = pal.f[0]; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const fname = j => (state.names ? `F${SUB[j]} score · ${state.names.f[j]}` : `Factor ${j + 1} score`);
+  ctx.fillText(fname(0), X(0), h - 2);
+  ctx.save(); ctx.translate(11, Y(0)); ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = pal.f[1]; ctx.textBaseline = 'middle'; ctx.fillText(fname(1), 0, 0); ctx.restore();
+
+  // points
+  ctx.save();
+  ctx.beginPath(); ctx.rect(X(-R), Y(R), 2 * R * s, 2 * R * s); ctx.clip();
+  const S = fit.S, F = data.F;
+  for (let i = 0; i < state.n; i++) {
+    const px = X(S[i][0]), py = Y(S[i][1]);
+    proj2.x[i] = px; proj2.y[i] = py;
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = rampColor(F[i][state.colorBy]);
+    ctx.beginPath(); ctx.arc(px, py, dotSize(), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // loadings
+  const k = R * 0.7;
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = pal.muted; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(X(0), Y(0), k * s, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '11px "IBM Plex Mono", monospace';
+  haloText(ctx, 'loading = 1', X(k * Math.cos(-0.62)) + 2, Y(k * Math.sin(-0.62)) + 12, pal.muted, 'left');
+  ctx.font = '600 13px "IBM Plex Mono", monospace';
+  for (let i = 0; i < 3; i++) {
+    const lx = fit.P[i][0] * k, ly = fit.P[i][1] * k;
+    arrow(ctx, X(0), Y(0), X(lx), Y(ly), pal.ink, 1.8);
+    const len = Math.hypot(lx, ly) || 1;
+    const off = 0.11 * R;
+    haloText(ctx, `x${SUB[i]}`, X(lx + (lx / len) * off), Y(ly + (ly / len) * off), pal.ink);
+  }
+  ctx.restore();
+
+  if (state.hover >= 0) ring(ctx, proj2.x[state.hover], proj2.y[state.hover]);
+}
+
+/* ---------- drawing helpers ---------- */
+function arrow(ctx, x1, y1, x2, y2, color, width) {
+  const a = Math.atan2(y2 - y1, x2 - x1), len = Math.hypot(x2 - x1, y2 - y1), hl = Math.min(9, len * 0.5);
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(a) * hl * 0.6, y2 - Math.sin(a) * hl * 0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hl * Math.cos(a - 0.4), y2 - hl * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - hl * Math.cos(a + 0.4), y2 - hl * Math.sin(a + 0.4));
+  ctx.closePath(); ctx.fill();
+  ctx.lineCap = 'butt';
+}
+function haloText(ctx, text, x, y, color, align = 'center') {
+  ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3.5; ctx.strokeStyle = pal.surface; ctx.lineJoin = 'round';
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color; ctx.fillText(text, x, y);
+}
+function ring(ctx, x, y) {
+  ctx.strokeStyle = pal.surface; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = pal.ink; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
+}
+
+/* ---------- interaction ---------- */
+function nearest(px, py, mx, my, n, depth) {
+  let best = -1, bd = 100; // 10px radius
+  for (let i = 0; i < n; i++) {
+    const d = (px[i] - mx) ** 2 + (py[i] - my) ** 2;
+    if (d < bd || (depth && d < 100 && best >= 0 && Math.abs(d - bd) < 4 && depth[i] < depth[best])) { bd = d; best = i; }
+  }
+  return best;
+}
+let drag = null;
+c3.addEventListener('pointerdown', e => {
+  drag = { x: e.clientX, y: e.clientY, yaw: state.yaw, pitch: state.pitch };
+  c3.setPointerCapture(e.pointerId); c3.classList.add('dragging');
+});
+c3.addEventListener('pointermove', e => {
+  if (drag) {
+    state.yaw = drag.yaw + (e.clientX - drag.x) * 0.01;
+    if (e.pointerType === 'mouse') state.pitch = Math.max(-1.3, Math.min(1.3, drag.pitch + (e.clientY - drag.y) * 0.008));
+    dirty3 = true;
+    return;
+  }
+  const r = c3.getBoundingClientRect();
+  setHover(nearest(proj3.x, proj3.y, e.clientX - r.left, e.clientY - r.top, state.n, proj3.d));
+});
+const endDrag = () => { drag = null; c3.classList.remove('dragging'); };
+c3.addEventListener('pointerup', endDrag);
+c3.addEventListener('pointercancel', endDrag);
+c3.addEventListener('pointerleave', () => { if (!drag) setHover(-1); });
+c3.addEventListener('keydown', e => {
+  const step = 0.08;
+  if (e.key === 'ArrowLeft') state.yaw -= step;
+  else if (e.key === 'ArrowRight') state.yaw += step;
+  else if (e.key === 'ArrowUp') state.pitch = Math.min(1.3, state.pitch + step);
+  else if (e.key === 'ArrowDown') state.pitch = Math.max(-1.3, state.pitch - step);
+  else return;
+  e.preventDefault(); dirty3 = true;
+});
+c2.addEventListener('pointermove', e => {
+  const r = c2.getBoundingClientRect();
+  setHover(nearest(proj2.x, proj2.y, e.clientX - r.left, e.clientY - r.top, state.n));
+});
+c2.addEventListener('pointerleave', () => setHover(-1));
+
+/* ---------- theme ---------- */
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readPalette);
+new MutationObserver(readPalette).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+if (document.fonts) document.fonts.ready.then(() => { dirty2 = dirty3 = true; });
+
+/* ---------- loop ---------- */
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(0.05, (t - last) / 1000); last = t;
+  if (state.spin && !drag) { state.yaw += dt * 0.32; dirty3 = true; }
+  if (dirty3) { draw3d(); dirty3 = false; }
+  if (dirty2) { draw2d(); dirty2 = false; }
+  requestAnimationFrame(frame);
+}
+
+readPalette();
+document.getElementById('preset').value = 'psychosis';
+syncInputs();
+recompute();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
