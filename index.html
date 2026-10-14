@@ -70,8 +70,14 @@ header p { margin: 0; color: var(--muted); }
 @media (max-width: 920px) { .app { grid-template-columns: minmax(0, 1fr); } }
 
 .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
-.controls { padding: 16px; display: grid; gap: 18px; }
-.controls section { display: grid; gap: 10px; }
+.controls { padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.controls section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.controls select { width: 100%; }
+.view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; border-top: 1px solid var(--rule); padding-top: 10px; }
+.view-controls .seg label { flex: none; padding-inline: 10px; }
+.inline-field { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+#diagram .dg-name { font-family: var(--font-body); font-size: 10px; font-weight: 600; }
+#diagram .dg-vname { font-family: var(--font-body); font-size: 9px; fill: var(--muted); }
 .controls section + section { border-top: 1px solid var(--rule); padding-top: 16px; }
 .label {
   font-family: var(--font-display);
@@ -124,12 +130,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, canvas:focus-vi
 .check input { accent-color: var(--ink); margin: 0; }
 
 main { display: grid; gap: 16px; min-width: 0; }
-.plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
-figure { margin: 0; padding: 14px; display: grid; gap: 8px; min-width: 0; }
+.plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; gap: 16px; }
+figure { margin: 0; padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; min-width: 0; }
 figure header { margin: 0; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; max-width: none; }
 figure h2 { font-family: var(--font-display); font-weight: 600; font-size: 17px; margin: 0; }
 figure .sub { font-size: 12.5px; color: var(--muted); }
-.canvas-box { position: relative; width: 100%; aspect-ratio: 1 / 1; max-width: 100%; }
+.canvas-box { position: relative; width: 100%; aspect-ratio: 1 / 1; max-width: 100%; min-width: 0; }
 .canvas-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 4px; }
 #c3 { cursor: grab; touch-action: pan-y; }
 #c3.dragging { cursor: grabbing; }
@@ -184,9 +190,8 @@ td .vname { font-size: 12.5px; }
   <div class="app">
     <aside class="panel controls" aria-label="Model and analysis settings">
       <section>
-        <div class="row-between">
-          <p class="label">Generating model</p>
-          <select id="preset" aria-label="Load a preset">
+        <p class="label">Generating model</p>
+        <select id="preset" aria-label="Load a preset">
             <option value="">Presets…</option>
             <optgroup label="Toy models">
               <option value="psychosis">Psychosis and mania (rare)</option>
@@ -198,22 +203,23 @@ td .vname { font-size: 12.5px; }
               <option value="weak">Weak indicators</option>
               <option value="onefactor">Nearly one factor</option>
             </optgroup>
-          </select>
-        </div>
+        </select>
         <div class="scenario" id="scenario" hidden></div>
-        <svg id="diagram" viewBox="0 0 280 196" role="img" aria-label="Path diagram of the generating model">
+        <svg id="diagram" viewBox="0 0 300 180" role="img" aria-label="Path diagram of the generating model">
           <defs>
             <marker id="ah1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--f1)"/></marker>
             <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--f2)"/></marker>
             <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
           </defs>
           <g id="dg-paths"></g>
-          <path id="dg-phi" d="M 102 30 Q 140 -4 178 30" fill="none" stroke="var(--muted)" stroke-width="1.2" marker-start="url(#ahm)" marker-end="url(#ahm)"/>
-          <text id="dg-phi-t" x="140" y="11" text-anchor="middle" font-size="10.5">φ = .00</text>
-          <circle cx="80" cy="46" r="24" fill="var(--surface)" stroke="var(--f1)" stroke-width="2"/>
-          <circle cx="200" cy="46" r="24" fill="var(--surface)" stroke="var(--f2)" stroke-width="2"/>
-          <text x="80" y="50.5" text-anchor="middle" font-size="13" style="fill:var(--f1)">F₁</text>
-          <text x="200" y="50.5" text-anchor="middle" font-size="13" style="fill:var(--f2)">F₂</text>
+          <path id="dg-phi" d="M 104 47 Q 150 23 196 47" fill="none" stroke="var(--muted)" stroke-width="1.2" marker-start="url(#ahm)" marker-end="url(#ahm)"/>
+          <text id="dg-phi-t" x="150" y="31" text-anchor="middle" font-size="10.5">φ = .00</text>
+          <text id="dg-fn-0" class="dg-name" x="80" y="11" text-anchor="middle" style="fill:var(--f1)"></text>
+          <text id="dg-fn-1" class="dg-name" x="220" y="11" text-anchor="middle" style="fill:var(--f2)"></text>
+          <circle cx="80" cy="52" r="22" fill="var(--surface)" stroke="var(--f1)" stroke-width="2"/>
+          <circle cx="220" cy="52" r="22" fill="var(--surface)" stroke="var(--f2)" stroke-width="2"/>
+          <text x="80" y="56.5" text-anchor="middle" font-size="13" style="fill:var(--f1)">F₁</text>
+          <text x="220" y="56.5" text-anchor="middle" font-size="13" style="fill:var(--f2)">F₂</text>
           <g id="dg-obs"></g>
         </svg>
         <div id="var-sliders" style="display:grid;gap:10px"></div>
@@ -271,22 +277,6 @@ td .vname { font-size: 12.5px; }
         </div>
         <label class="check"><input type="checkbox" id="align" checked> Match factor order and sign to the true factors</label>
       </section>
-
-      <section>
-        <p class="label">View</p>
-        <div class="field">
-          <span>Colour points by</span>
-          <div class="seg" role="radiogroup" aria-label="Colour points by">
-            <input type="radio" name="col" id="col-0" value="0" checked><label for="col-0">True F₁</label>
-            <input type="radio" name="col" id="col-1" value="1"><label for="col-1">True F₂</label>
-          </div>
-        </div>
-        <label class="check"><input type="checkbox" id="spin" checked> Rotate the 3D view</label>
-        <label class="check"><input type="checkbox" id="plane" checked> Show the common-factor plane</label>
-        <label class="check"><input type="checkbox" id="resid"> Show distance to the plane</label>
-        <label class="check"><input type="checkbox" id="factors3"> Show factor directions in 3D</label>
-        <label class="check"><input type="checkbox" id="loadings2"> Show variable loadings in 2D</label>
-      </section>
     </aside>
 
     <main>
@@ -297,7 +287,19 @@ td .vname { font-size: 12.5px; }
             <span class="legend"><span class="lg-lo"></span><i></i><span class="lg-hi"></span></span>
           </header>
           <div class="canvas-box"><canvas id="c3" tabindex="0" aria-label="Rotating 3D scatter plot of x1, x2 and x3. Drag or use arrow keys to rotate."></canvas></div>
-          <figcaption>Standardised x₁, x₂, x₃. Drag or use arrow keys to turn. The shaded rectangle is the plane the two factors span. Under View you can also show the direction each factor pushes the data.</figcaption>
+          <figcaption>Standardised x₁, x₂, x₃. Drag or use arrow keys to turn. The plane option shades the plane the two factors span and draws the direction each factor pushes the data.</figcaption>
+          <div class="view-controls">
+            <div class="inline-field">
+              <span>Colour both plots by</span>
+              <div class="seg" role="radiogroup" aria-label="Colour points in both plots by">
+                <input type="radio" name="col" id="col-0" value="0" checked><label for="col-0">True F₁</label>
+                <input type="radio" name="col" id="col-1" value="1"><label for="col-1">True F₂</label>
+              </div>
+            </div>
+            <label class="check"><input type="checkbox" id="spin" checked> Rotate</label>
+            <label class="check"><input type="checkbox" id="plane"> Show common-factor plane and factor directions</label>
+            <label class="check"><input type="checkbox" id="resid"> Show distance to the plane</label>
+          </div>
         </figure>
         <figure class="panel">
           <header>
@@ -305,7 +307,10 @@ td .vname { font-size: 12.5px; }
             <span class="legend"><span class="lg-lo"></span><i></i><span class="lg-hi"></span></span>
           </header>
           <div class="canvas-box"><canvas id="c2" aria-label="2D plot of estimated factor scores with loading vectors"></canvas></div>
-          <figcaption>Points are estimated factor scores (regression method). Under View you can also show each variable’s loadings as arrows, with a dashed circle marking a loading of 1.</figcaption>
+          <figcaption>Points are estimated factor scores (regression method). Loadings appear as arrows, with a dashed circle marking a loading of 1.</figcaption>
+          <div class="view-controls">
+            <label class="check"><input type="checkbox" id="loadings2"> Show variable loadings</label>
+          </div>
         </figure>
       </div>
 
@@ -577,6 +582,7 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 const SCENARIOS = {
   psychosis: {
     f: ['schizophrenia spectrum', 'bipolar mania'],
+    fShort: ['schizophrenia', 'mania'],
     x: ['negative symptoms', 'elevated mood', 'delusions'],
     html: `<p><b>Psychosis and mania.</b> A toy model of a community mental-health survey.</p>
       <p><span class="f1">F₁ schizophrenia spectrum</span> and <span class="f2">F₂ bipolar mania</span> are each present in 4% of people here. Real lifetime rates are nearer 1%; they are raised so each horn has enough points.</p>
@@ -585,6 +591,7 @@ const SCENARIOS = {
   },
   behaviour: {
     f: ['internalising', 'externalising'],
+    fShort: ['internalising', 'externalising'],
     x: ['emotional symptoms', 'conduct problems', 'irritability'],
     html: `<p><b>Child behaviour problems.</b> A toy model of teacher ratings in a school sample.</p>
       <p><span class="f1">F₁ internalising</span> (anxiety, low mood) and <span class="f2">F₂ externalising</span> (defiance, aggression) can’t go below zero, and each is present in only a minority of children.</p>
@@ -603,8 +610,8 @@ const PRESETS = {
 const state = {
   lam: [], phi: 0, n: 300, dist: 'normal', active: 0.25, severity: 1, names: null, seed: 20261014,
   extraction: 'paf', rotation: 'oblimin', align: true, colorBy: 0, colorDom: [[-2, 2], [-2, 2]],
-  showFactors3: false, showLoadings2: false,
-  spin: !reducedMotion, plane: true, resid: false,
+  showLoadings2: false,
+  spin: !reducedMotion, plane: false, resid: false,
   yaw: 0.75, pitch: 0.38, hover: -1, ext3: 3, ext2: 3.5,
 };
 function applyPreset(key) {
@@ -780,7 +787,6 @@ document.querySelectorAll('input[name="col"]').forEach(el => el.addEventListener
   updateLegend();
   dirty2 = dirty3 = true;
 }));
-document.getElementById('factors3').addEventListener('change', e => { state.showFactors3 = e.target.checked; dirty3 = true; });
 document.getElementById('loadings2').addEventListener('change', e => { state.showLoadings2 = e.target.checked; dirty2 = true; });
 document.getElementById('align').addEventListener('change', e => { state.align = e.target.checked; refit(); });
 const spinBox = document.getElementById('spin');
@@ -791,12 +797,14 @@ document.getElementById('resid').addEventListener('change', e => { state.resid =
 
 /* ---------- path diagram ---------- */
 function updateDiagram() {
-  const fx = [80, 200], fy = 46, r = 24, ox = [50, 140, 230], oyTop = 112, oh = 32, ow = 44;
+  const named = !!state.names;
+  const fx = [80, 220], fy = 52, r = 22, ox = [52, 150, 248], oyTop = 108, oh = named ? 38 : 32, ow = named ? 92 : 46;
+  for (let j = 0; j < 2; j++) document.getElementById(`dg-fn-${j}`).textContent = named ? state.names.f[j] : '';
   let paths = '';
   for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
     const l = state.lam[i][j];
     if (Math.abs(l) < 0.005) continue;
-    const ex = ox[i] + (j === 0 ? -7 : 7), ey = oyTop - 1;
+    const ex = ox[i] + (j === 0 ? -9 : 9), ey = oyTop - 1;
     const dx = ex - fx[j], dy = ey - fy, d = Math.hypot(dx, dy);
     const sx = fx[j] + (dx / d) * r, sy = fy + (dy / d) * r;
     paths += `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex}" y2="${ey}" stroke="var(--f${j + 1})" stroke-width="${(0.6 + 4 * Math.abs(l)).toFixed(2)}" stroke-opacity="${(0.3 + 0.7 * Math.abs(l)).toFixed(2)}" ${l < 0 ? 'stroke-dasharray="4 3"' : ''} marker-end="url(#ah${j + 1})"/>`;
@@ -806,9 +814,10 @@ function updateDiagram() {
   for (let i = 0; i < 3; i++) {
     const t = data.truth[i];
     obs += `<rect x="${ox[i] - ow / 2}" y="${oyTop}" width="${ow}" height="${oh}" rx="3" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/>
-      <text x="${ox[i]}" y="${oyTop + 20.5}" text-anchor="middle" font-size="13">x${SUB[i]}</text>
-      <line x1="${ox[i]}" y1="${oyTop + oh + 30}" x2="${ox[i]}" y2="${oyTop + oh + 1}" stroke="var(--muted)" stroke-width="${(0.6 + 3 * Math.sqrt(t.psi)).toFixed(2)}" marker-end="url(#ahm)"/>
-      <text x="${ox[i] + 6}" y="${oyTop + oh + 27}" font-size="10" style="fill:var(--muted)">e${SUB[i]}</text>`;
+      <text x="${ox[i]}" y="${oyTop + (named ? 16 : 20.5)}" text-anchor="middle" font-size="13">x${SUB[i]}</text>
+      ${named ? `<text class="dg-vname" x="${ox[i]}" y="${oyTop + 30}" text-anchor="middle">${state.names.x[i]}</text>` : ''}
+      <line x1="${ox[i]}" y1="${oyTop + oh + 28}" x2="${ox[i]}" y2="${oyTop + oh + 1}" stroke="var(--muted)" stroke-width="${(0.6 + 3 * Math.sqrt(t.psi)).toFixed(2)}" marker-end="url(#ahm)"/>
+      <text x="${ox[i] + 6}" y="${oyTop + oh + 25}" font-size="10" style="fill:var(--muted)">e${SUB[i]}</text>`;
     const h = document.getElementById(`h2-${i}`);
     h.textContent = t.capped ? `h² capped at .98` : `h² = ${fmt(t.h2)}`;
     h.classList.toggle('capped', t.capped);
@@ -993,7 +1002,7 @@ function draw3d() {
   drawPoints(items.filter(it => !it.far));
 
   // factor arrows: the direction in x-space that one unit of each factor moves the data
-  if (state.showFactors3) {
+  if (state.plane) {
     const o = P(0, 0, 0);
     for (let j = 0; j < 2; j++) {
       const tip = [L[0][j], L[1][j], L[2][j]].map(v => v * 2.6 * ext / 3);
@@ -1001,7 +1010,7 @@ function draw3d() {
       arrow(ctx, o[0], o[1], t[0], t[1], pal.f[j], 2.4);
       const lab = P(...tip.map(v => v * 1.14));
       ctx.font = '600 13px "IBM Plex Mono", monospace';
-      haloText(ctx, `F${SUB[j]}`, lab[0], lab[1], pal.f[j]);
+      haloText(ctx, state.names ? `F${SUB[j]} ${state.names.fShort[j]}` : `F${SUB[j]}`, lab[0], lab[1], pal.f[j]);
     }
   }
   axisLabels();

@@ -9,7 +9,7 @@ Everything runs in the browser. There is no build step and no server-side code: 
 - **Generating model**: the six loadings, the factor correlation φ, and the sample size (up to 3,000).
 - **Factor distribution**: normal (an elliptical cloud), sparse (an X), or sparse and non-negative (two "horns"), with a prevalence slider and a choice of how severity is spread among cases where a factor is present.
 - **Analysis**: principal axis factoring or principal components; no rotation, varimax, promax or oblimin (direct quartimin, the default); optional matching of estimated factors to the true ones.
-- **View**: colour points by either true factor, and optionally show the common-factor plane, each point's distance to it, the factor directions in the 3D plot and the variable loadings in the 2D plot.
+- **View**: colour points by either true factor, and optionally show the common-factor plane with the factor directions and each point's distance to it in the 3D plot, and the variable loadings in the 2D plot. These controls sit under each plot.
 
 ## Presets
 
