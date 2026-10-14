@@ -292,7 +292,8 @@ td .vname { font-size: 12.5px; }
             <div class="inline-field">
               <span>Colour both plots by</span>
               <div class="seg" role="radiogroup" aria-label="Colour points in both plots by">
-                <input type="radio" name="col" id="col-0" value="0" checked><label for="col-0">True F₁</label>
+                <input type="radio" name="col" id="col-none" value="-1" checked><label for="col-none">Neither</label>
+                <input type="radio" name="col" id="col-0" value="0"><label for="col-0">True F₁</label>
                 <input type="radio" name="col" id="col-1" value="1"><label for="col-1">True F₂</label>
               </div>
             </div>
@@ -609,7 +610,7 @@ const PRESETS = {
 };
 const state = {
   lam: [], phi: 0, n: 300, dist: 'normal', active: 0.25, severity: 1, names: null, seed: 20261014,
-  extraction: 'paf', rotation: 'oblimin', align: true, colorBy: 0, colorDom: [[-2, 2], [-2, 2]],
+  extraction: 'paf', rotation: 'oblimin', align: true, colorBy: -1, colorDom: [[-2, 2], [-2, 2]],
   showLoadings2: false,
   spin: !reducedMotion, plane: false, resid: false,
   yaw: 0.75, pitch: 0.38, hover: -1, ext3: 3, ext2: 3.5,
@@ -663,6 +664,7 @@ function readPalette() {
   dirty2 = dirty3 = true;
 }
 const rampColor = v => {
+  if (state.colorBy < 0) return pal.muted;
   const [lo, hi] = state.colorDom[state.colorBy];
   return pal.ramp[state.colorBy][Math.max(0, Math.min(47, Math.round(((v - lo) / (hi - lo)) * 47)))];
 };
@@ -680,8 +682,11 @@ function setColorDomain() {
   updateLegend();
 }
 function updateLegend() {
+  const legends = document.querySelectorAll('.legend');
+  legends.forEach(l => { l.hidden = state.colorBy < 0; });
+  if (state.colorBy < 0) return;
   const [lo, hi] = state.colorDom[state.colorBy];
-  document.querySelectorAll('.legend').forEach(l => {
+  legends.forEach(l => {
     l.style.setProperty('--legend-hi', `var(--f${state.colorBy + 1})`);
     l.querySelector('.lg-lo').textContent = `true F${SUB[state.colorBy]} ${fmtN(lo, 1)}`;
     l.querySelector('.lg-hi').textContent = `${hi > 0 ? '+' : ''}${fmtN(hi, 1)}`;
